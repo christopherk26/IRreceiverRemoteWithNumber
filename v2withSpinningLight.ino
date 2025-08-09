@@ -32,6 +32,7 @@ const byte digits[10][7] = {
 bool isSpinning = false;
 unsigned long lastSpinTime = 0;
 int currentSegment = 0;
+int snakeLength = 1; // Length of the snake (1 or 2 segments)
 const int spinDelay = 150; // milliseconds between segment changes
 
 void setup() {
@@ -50,7 +51,7 @@ void setup() {
   // Clear display on startup
   clearDisplay();
   Serial.println("IR Remote 7-Segment Display Ready!");
-  Serial.println("Press 0-9 to show numbers, Play button to spin!");
+  Serial.println("Press 0-9 to show numbers, Play for single spin, Snake button for 2-segment spin!");
 }
 
 void loop() {
@@ -61,10 +62,23 @@ void loop() {
     
     long int code = irrecv.decodedIRData.decodedRawData;
     
-    // Check for play button
+    // Check for play button (single segment spin)
     if (code == 0xBF40FF00) {
-      Serial.println("Play button pressed - starting spin animation!");
+      Serial.println("Play button pressed - starting single segment spin!");
       isSpinning = !isSpinning; // Toggle spinning on/off
+      snakeLength = 1; // Single segment
+      if (isSpinning) {
+        currentSegment = 0;
+        lastSpinTime = millis();
+      } else {
+        clearDisplay();
+      }
+    }
+    // Check for snake button (2 segment spin)
+    else if (code == 0xBC43FF00) {
+      Serial.println("Snake button pressed - starting 2-segment snake spin!");
+      isSpinning = !isSpinning; // Toggle spinning on/off
+      snakeLength = 2; // Two segments
       if (isSpinning) {
         currentSegment = 0;
         lastSpinTime = millis();
@@ -144,18 +158,22 @@ void clearDisplay() {
   digitalWrite(segG, LOW);
 }
 
-// Spin the segments in a circle: a->b->c->d->e->f->repeat (no middle segment G)
+// Spin the segments in a circle with configurable snake length
 void spinSegments() {
   clearDisplay(); // Turn off all segments first
   
-  // Light up the current segment (only outer segments, no middle G)
-  switch(currentSegment) {
-    case 0: digitalWrite(segA, HIGH); break; // top
-    case 1: digitalWrite(segB, HIGH); break; // top right
-    case 2: digitalWrite(segC, HIGH); break; // bottom right
-    case 3: digitalWrite(segD, HIGH); break; // bottom
-    case 4: digitalWrite(segE, HIGH); break; // bottom left
-    case 5: digitalWrite(segF, HIGH); break; // top left
+  // Light up segments based on snake length
+  for (int i = 0; i < snakeLength; i++) {
+    int segmentToLight = (currentSegment + i) % 6; // Wrap around after segment 5
+    
+    switch(segmentToLight) {
+      case 0: digitalWrite(segA, HIGH); break; // top
+      case 1: digitalWrite(segB, HIGH); break; // top right
+      case 2: digitalWrite(segC, HIGH); break; // bottom right
+      case 3: digitalWrite(segD, HIGH); break; // bottom
+      case 4: digitalWrite(segE, HIGH); break; // bottom left
+      case 5: digitalWrite(segF, HIGH); break; // top left
+    }
   }
   
   // Move to next segment
